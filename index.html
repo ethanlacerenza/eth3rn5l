@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>eth3rn5l — offensive security</title>
+</head>
+<body>
+  <!-- Canvas WebGL: tutto il rendering (scene, glitch, katakana) gira qui,
+       gestito dal modulo Rust/WASM. La UI viene costruita nel DOM da Rust. -->
+  <canvas id="glc"></canvas>
+
+  <script type="module">
+    import init from './pkg/eth3rn5l_portfolio.js';
+    init().catch(e => {
+      console.error('WASM init failed:', e);
+      document.body.innerHTML =
+        '<pre style="color:#ff2f6e;font-family:monospace;padding:2rem">'
+        + 'WASM load error:\n' + e + '</pre>';
+    });
+  </script>
+</body>
+</html>
