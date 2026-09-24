@@ -1,0 +1,71 @@
+name: Build WASM + Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable + wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-bindgen-cli 0.2.128
+        run: cargo install wasm-bindgen-cli --version "0.2.128" --locked
+
+      - name: Build WASM (release)
+        run: |
+          cargo build --release --target wasm32-unknown-unknown
+          wasm-bindgen \
+            --target web \
+            --out-dir ./pkg \
+            --no-typescript \
+            ./target/wasm32-unknown-unknown/release/eth3rn5l_portfolio.wasm
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/pkg
+          cp index.html _site/
+          cp pkg/eth3rn5l_portfolio.js       _site/pkg/
+          cp pkg/eth3rn5l_portfolio_bg.wasm  _site/pkg/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
