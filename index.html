@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>eth3rn5l — offensive security</title>
+</head>
+<body>
+  <canvas id="glc"></canvas>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+       Bootstrap. Look canon Cyberpunk: Edgerunners.
+       Un modulo WebAssembly dedicato (AssemblyScript -> ./wasm-glyph/glyph.wasm)
+       genera:
+         • le INSEGNE al neon in KATAKANA VERI (glifi vettoriali + parole:
+           ネオン, サイバー, ナイト, ミライ, サムライ...), con flicker e glitch;
+         • la PALETTE ufficiale Edgerunners (color-hex 1035160) applicata a
+           insegne, città e pioggia katakana.
+       Il JavaScript non contiene logica ne' shader: chiede le stringhe a WASM
+       e le inietta intercettando WebGL2.shaderSource, instradando per contenuto:
+         • post.frag  (`u_scene`) -> overlay insegne + composite
+         • scene.frag (`sdE`)     -> centro libero + recolor città
+         • kana.frag  (`kcol`)    -> recolor pioggia
+       Doppio percorso (wasm attuale / ricompilata): sempre insegne casuali.
+       ───────────────────────────────────────────────────────────────────── -->
+  <script type="module">
+    import {
+      genOverlay, genData, genComposite, genScenePatch,
+      genSceneShade, genSceneBg, genSceneFog, genKanaPalette
+    } from './wasm-glyph/glyph.js';
+
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0] >>> 0;
+
+    // GLSL prodotto interamente da WebAssembly
+    const OVERLAY = genOverlay(seed);
+    const DATA    = genData(seed);
+    const COMP    = genComposite();
+    const SPATCH  = genScenePatch();
+    const SSHADE  = genSceneShade();
+    const SBG     = genSceneBg();
+    const SFOG    = genSceneFog();
+    const KPAL    = genKanaPalette();
+
+    // post.frag
+    const RE_MAIN  = /void main\(\)\{/;
+    const RE_OUT   = /  o=vec4\(clamp\(col,0\.0,1\.0\),1\.0\);/;
+    const RE_PDATA = /\/\/__PANEL_DATA_START__[\s\S]*?\/\/__PANEL_DATA_END__/;
+    // scene.frag
+    const RE_SDE   = /\/\/ letter E from boxes\s*\nfloat sdE\(vec3 p\)\{[\s\S]*?\n\}/;
+    const RE_MAP   = /\/\/ central E monolith[\s\S]*?res=vec2\(de,5\.0\);/;
+    const RE_SHADE = /    vec3 base=vec3\(0\.02\);[\s\S]*?if\(m>0\.5&&m<5\.5\)col\+=base\*1\.5;/;
+    const RE_BG    = /    col=mix\(vec3\(0\.0,0\.01,0\.04\),vec3\(0\.03,0\.0,0\.06\),v_uv\.y\);/;
+    const RE_FOG   = /    float fog=1\.0-exp\(-t\*0\.05\); col=mix\(col,vec3\(0\.01,0\.0,0\.03\),fog\);/;
+    // kana.frag
+    const RE_KCOL  = /vec3 kcol\(float i\)\{[\s\S]*?return c\[int\(i\)\];\}/;
+
+    function rewrite(src) {
+      if (typeof src !== 'string') return src;
+      try {
+        if (src.indexOf('u_scene') >= 0) {                 // ── POST ──
+          if (RE_PDATA.test(src)) return src.replace(RE_PDATA, DATA);
+          if (RE_OUT.test(src)) {
+            let out = src.replace(RE_MAIN, OVERLAY + '\nvoid main(){');
+            return out.replace(RE_OUT, COMP + '\n  o=vec4(clamp(col,0.0,1.0),1.0);');
+          }
+          return src;
+        }
+        if (src.indexOf('kcol') >= 0) {                    // ── KANA ──
+          return RE_KCOL.test(src) ? src.replace(RE_KCOL, KPAL) : src;
+        }
+        if (src.indexOf('sdE') >= 0 || src.indexOf('map(vec3 p)') >= 0) {  // ── SCENE ──
+          let out = src;
+          if (RE_MAP.test(out))   out = out.replace(RE_MAP, SPATCH);
+          if (RE_SDE.test(out))   out = out.replace(RE_SDE, '// (sdE rimosso — centro sgombro)');
+          if (RE_SHADE.test(out)) out = out.replace(RE_SHADE, SSHADE);
+          if (RE_BG.test(out))    out = out.replace(RE_BG, SBG);
+          if (RE_FOG.test(out))   out = out.replace(RE_FOG, SFOG);
+          return out;
+        }
+      } catch (e) {
+        console.warn('[edgerunners-wasm] rewrite saltato:', e);
+      }
+      return src;
+    }
+
+    if (window.WebGL2RenderingContext && !WebGL2RenderingContext.__erPatched) {
+      const proto = WebGL2RenderingContext.prototype;
+      const orig = proto.shaderSource;
+      proto.shaderSource = function (shader, source) {
+        return orig.call(this, shader, rewrite(source));
+      };
+      WebGL2RenderingContext.__erPatched = true;
+      console.log('[edgerunners-wasm] insegne katakana attive — seed', seed);
+    }
+
+    const { default: init } = await import('./pkg/eth3rn5l_portfolio.js');
+    init().catch(e => {
+      console.error('WASM init failed:', e);
+      document.body.innerHTML =
+        '<pre style="color:#ff2f6e;font-family:monospace;padding:2rem">'
+        + 'WASM load error:\n' + e + '</pre>';
+    });
+  </script>
+</body>
+</html>

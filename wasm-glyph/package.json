@@ -1,0 +1,13 @@
+{
+  "name": "eth3rn5l-glyph-wasm",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Procedural Japanese-ideogram generator compiled to WebAssembly (AssemblyScript). Emits the central-structure GLSL for the portfolio scene shader.",
+  "scripts": {
+    "build": "asc src/glyph.ts --outFile glyph.wasm --bindings esm --optimize --exportRuntime"
+  },
+  "devDependencies": {
+    "assemblyscript": "0.27.31"
+  }
+}
